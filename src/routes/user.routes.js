@@ -5,6 +5,7 @@ import {
   logoutUser,
   refreshAccessToken,
   getCurrentUser,
+  getTripsCreatedByUser,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -25,11 +26,15 @@ userRouter.route("/register").post(
   ]),
   registerUser
 );
-userRouter.route("login").post(loginUser);
+userRouter.route("/login").post(loginUser);
 
 // Secured Routes
-userRouter.route("logout").post(verifyJWT, logoutUser);
+userRouter.route("/logout").post(verifyJWT, logoutUser);
 userRouter.route("/refresh-token").post(refreshAccessToken);
 userRouter.route("/current-user").get(verifyJWT, getCurrentUser);
+userRouter
+  .route("/getTripsCreatedByUser")
+  .get(verifyJWT, getTripsCreatedByUser);
+userRouter.route("/getTripsJoinedByUser").get(verifyJWT, getTripsCreatedByUser);
 
 export default userRouter;

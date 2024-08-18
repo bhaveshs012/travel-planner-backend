@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
 import { cookieOptions } from "../utils/cookieOptions.js";
+import { TripPlan } from "../models/trip.model.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -210,6 +211,35 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   );
 });
 
+//* Related to Trip Plans
+const getTripsCreatedByUser = asyncHandler(async (req, res) => {
+  // already passed through middleware
+  const userId = req.user._id;
+
+  try {
+    const trips = await TripPlan.find({ createdBy: userId });
+    res
+      .status(200)
+      .json(new ApiResponse(200, trips, "Trips Fetched Successfully"));
+  } catch (error) {
+    throw new ApiError(500, "Something went Wrong !!");
+  }
+});
+
+const getTripsJoinedByUser = asyncHandler(async (req, res) => {
+  // already passed through middleware
+  const userId = req.user._id;
+
+  try {
+    const trips = await TripPlan.find({ tripMembers: userId });
+    res
+      .status(200)
+      .json(new ApiResponse(200, trips, "Trips Fetched Successfully"));
+  } catch (error) {
+    throw new ApiError(500, "Something went Wrong !!");
+  }
+});
+
 export {
   registerUser,
   loginUser,
@@ -217,4 +247,6 @@ export {
   generateAccessAndRefreshTokens,
   refreshAccessToken,
   getCurrentUser,
+  getTripsCreatedByUser,
+  getTripsJoinedByUser,
 };

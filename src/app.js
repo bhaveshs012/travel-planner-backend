@@ -19,6 +19,8 @@ app.use(cookieParser());
 
 // Adding all the routes
 import userRouter from "./routes/user.routes.js";
+import tripRouter from "./routes/trip.routes.js";
 app.use("/api/v1/users", userRouter); // on encountering this route : send the control to userRouter
+app.use("/api/v1/tripPlan", tripRouter);
 
 export { app };
