@@ -72,6 +72,12 @@ const createTripPlan = asyncHandler(async (req, res) => {
   let coverImage;
   if (coverImageLocalPath) {
     coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if (!coverImage) {
+      throw new ApiError(
+        500,
+        "Cover Image Could not be uploaded !! Try Again.."
+      );
+    }
   }
 
   // create the entry in database
