@@ -6,6 +6,7 @@ import {
   refreshAccessToken,
   getCurrentUser,
   getTripsCreatedByUser,
+  acceptTripInvitation,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -32,9 +33,12 @@ userRouter.route("/login").post(loginUser);
 userRouter.route("/logout").post(verifyJWT, logoutUser);
 userRouter.route("/refresh-token").post(refreshAccessToken);
 userRouter.route("/current-user").get(verifyJWT, getCurrentUser);
+
+//* Trips Related
 userRouter
   .route("/getTripsCreatedByUser")
   .get(verifyJWT, getTripsCreatedByUser);
 userRouter.route("/getTripsJoinedByUser").get(verifyJWT, getTripsCreatedByUser);
+userRouter.route("/acceptInvite/:tripId").post(verifyJWT, acceptTripInvitation);
 
 export default userRouter;

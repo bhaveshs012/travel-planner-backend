@@ -1,7 +1,15 @@
 import { Router } from "express";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { createTripPlan, getTripById } from "../controllers/trip.controller.js";
+import {
+  addSingleItineraryItem,
+  createTripPlan,
+  deleteTrip,
+  getTripById,
+  inviteUserToTrip,
+  removeTripMember,
+  updateTripPlan,
+} from "../controllers/trip.controller.js";
 
 const tripRouter = Router();
 
@@ -15,7 +23,13 @@ tripRouter.route("/createTripPlan").post(
   verifyJWT,
   createTripPlan
 );
-
+tripRouter
+  .route("/:tripId/itineraries")
+  .post(verifyJWT, addSingleItineraryItem);
 tripRouter.route("/getTripPlan/:tripId").get(verifyJWT, getTripById);
+tripRouter.route("/:tripId").put(verifyJWT, updateTripPlan);
+tripRouter.route("/:tripId").delete(verifyJWT, deleteTrip);
+tripRouter.route("/inviteToTrip").post(verifyJWT, inviteUserToTrip);
+tripRouter.route("/:tripId/:memberId").post(verifyJWT, removeTripMember);
 
 export default tripRouter;

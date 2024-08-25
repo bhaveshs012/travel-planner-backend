@@ -6,6 +6,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
 import { cookieOptions } from "../utils/cookieOptions.js";
 import { TripPlan } from "../models/trip.model.js";
+import { Invitation } from "../models/invitation.model.js";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -240,6 +241,65 @@ const getTripsJoinedByUser = asyncHandler(async (req, res) => {
   }
 });
 
+const acceptTripInvitation = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+  const userId = req.user?.id;
+
+  //* Validate the Invitation -> needed only for backend testing -> when connected with front end : this will never occur
+  const invite = await Invitation.findOne({
+    $and: [
+      { tripId },
+      {
+        invitee: userId,
+      },
+    ],
+  });
+
+  if (!invite) {
+    throw new ApiError(400, "Invitation is not valid !!");
+  }
+
+  //* Update the trip Members in the Trip Document
+  const updatedTrip = await TripPlan.findByIdAndUpdate(
+    tripId,
+    {
+      $addToSet: { tripMembers: userId },
+    },
+    { new: true }
+  );
+
+  if (!updatedTrip) {
+    throw new ApiError(
+      500,
+      "Something went wrong while accepting the invite !!"
+    );
+  }
+  // If the addition was successful -> delete the invitation
+  const result = await Invitation.findOneAndDelete({
+    $and: [
+      {
+        tripId,
+      },
+      {
+        invitee: userId,
+      },
+    ],
+  });
+
+  if (!result) {
+    throw new ApiError(
+      500,
+      "Something went wrong while accepting the invite !!"
+    );
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedTrip, "Invitation accepted successfully !!")
+    );
+});
+
 export {
   registerUser,
   loginUser,
@@ -249,4 +309,5 @@ export {
   getCurrentUser,
   getTripsCreatedByUser,
   getTripsJoinedByUser,
+  acceptTripInvitation,
 };
