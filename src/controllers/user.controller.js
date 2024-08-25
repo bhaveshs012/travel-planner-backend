@@ -83,7 +83,9 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (existingUser) {
-    throw new ApiError(400, "User already exists !!");
+    return res
+      .status(400)
+      .json(new ApiResponse(400, "", "User already exists !!"));
   }
 
   // check if avatar image is present : multer will give this field
@@ -101,7 +103,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // avatar not found: throw error
   if (!avatarImageLocalPath)
-    throw new ApiError(400, "Profile Image is required !!");
+    return res
+      .status(400)
+      .json(new ApiResponse(400, "", "Profile Image is Required !!"));
 
   //upload on cloudinary
   const avatar = await uploadOnCloudinary(avatarImageLocalPath);
@@ -110,7 +114,17 @@ const registerUser = asyncHandler(async (req, res) => {
     coverImage = await uploadOnCloudinary(coverImageLocalPath);
   }
 
-  if (!avatar) throw new ApiError(500, "Avatar image could not be uploaded !!");
+  if (!avatar) {
+    return res
+      .status(500)
+      .json(
+        new ApiResponse(
+          500,
+          "",
+          "Server Error :: Profile Image could not be uploaded !!"
+        )
+      );
+  }
 
   // create user
   const user = await User.create({
@@ -128,12 +142,20 @@ const registerUser = asyncHandler(async (req, res) => {
   );
 
   if (!createdUser) {
-    throw new ApiError(500, "Something went wrong while registering the user");
+    return res
+      .status(500)
+      .json(new ApiResponse(500, "", "User could not be registered !!"));
   }
 
   return res
     .status(201)
-    .json(new ApiResponse(201, createdUser, "User registered Successfully"));
+    .json(
+      new ApiResponse(
+        201,
+        { user: createdUser },
+        "User registered Successfully"
+      )
+    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -152,7 +174,7 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!user) {
     return res
       .status(400)
-      .json(new ApiResponse(400, null, "User does not exists !!"));
+      .json(new ApiResponse(400, "", "User does not exists !!"));
   }
 
   // validate the password
