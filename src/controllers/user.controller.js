@@ -149,11 +149,19 @@ const loginUser = asyncHandler(async (req, res) => {
     $or: [{ username }, { email }],
   });
 
-  if (!user) throw new ApiError(401, "User does not exists !!");
+  if (!user) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "User does not exists !!"));
+  }
 
   // validate the password
   const isPasswordValid = await user.isPasswordCorrect(password);
-  if (!isPasswordValid) throw new ApiError(401, "Invalid Credentials !!");
+  if (!isPasswordValid) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, "", "Invalid Credentials !!"));
+  }
 
   // generate the tokens
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
