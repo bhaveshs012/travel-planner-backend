@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { addBooking, dummyCheck } from "../controllers/booking.controller.js";
+import {
+  addBooking,
+  dummyCheck,
+  getBookings,
+} from "../controllers/booking.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
 const bookingRouter = Router();
@@ -15,6 +19,7 @@ bookingRouter.route("/addBooking").post(
   ]),
   addBooking
 );
+bookingRouter.route("/:tripId/getBookings").get(verifyJWT, getBookings);
 bookingRouter.route("/dummyCheck").get(verifyJWT, dummyCheck);
 
 export default bookingRouter;

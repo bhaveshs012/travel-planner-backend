@@ -6,6 +6,7 @@ import {
   createTripPlan,
   deleteTrip,
   getTripById,
+  getTripSummary,
   inviteUserToTrip,
   removeTripMember,
   updateTripPlan,
@@ -27,6 +28,8 @@ tripRouter
   .route("/:tripId/itineraries")
   .post(verifyJWT, addSingleItineraryItem);
 tripRouter.route("/getTripPlan/:tripId").get(verifyJWT, getTripById);
+tripRouter.route("/:tripId/getSummary").get(verifyJWT, getTripSummary);
+
 tripRouter.route("/:tripId").put(verifyJWT, updateTripPlan);
 tripRouter.route("/:tripId").delete(verifyJWT, deleteTrip);
 tripRouter.route("/inviteToTrip").post(verifyJWT, inviteUserToTrip);

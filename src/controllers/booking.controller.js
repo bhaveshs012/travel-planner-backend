@@ -41,8 +41,33 @@ const addBooking = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, createdBooking, "Booking Saved Successfully"));
 });
 
+const getBookings = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+
+  if (!tripId) {
+    throw new ApiError(400, "Trip Id cannot be NULL !!");
+  }
+
+  const bookings = await Booking.find({
+    tripId,
+  });
+  if (!bookings) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, [], "No Bookings Found !!"));
+  }
+  if (Array.isArray(bookings) && bookings.length === 0) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, [], "No Bookings Found !!"));
+  }
+  return res
+    .status(201)
+    .json(new ApiResponse(201, bookings, "Booking Fetched Successfully"));
+});
+
 const dummyCheck = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, "Working !!"));
 });
 
-export { addBooking, dummyCheck };
+export { addBooking, getBookings, dummyCheck };

@@ -233,6 +233,7 @@ const addSingleItineraryItem = asyncHandler(async (req, res) => {
   }
 });
 
+//* Trip Members
 const inviteUserToTrip = asyncHandler(async (req, res) => {
   const { tripId, inviteeId } = req.body;
   const inviterId = req.user?._id;
@@ -315,6 +316,87 @@ const removeTripMember = asyncHandler(async (req, res) => {
   });
 });
 
+//* Get Trip Summary
+const getTripSummary = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+  const objectId = new mongoose.Types.ObjectId(tripId);
+  try {
+    const summary = await TripPlan.aggregate([
+      {
+        $match: {
+          _id: objectId,
+        },
+      },
+      {
+        $addFields: {
+          totalDays: {
+            $dateDiff: {
+              startDate: "$startDate",
+              endDate: "$endDate",
+              unit: "day",
+            },
+          },
+          totalNights: {
+            $subtract: [
+              {
+                $dateDiff: {
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  unit: "day",
+                },
+              },
+              1,
+            ],
+          },
+        },
+      },
+      {
+        $unwind: {
+          path: "$itinerary",
+          preserveNullAndEmptyArrays: true, // Handle cases with empty itinerary
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          tripName: { $first: "$tripName" },
+          tripDesc: { $first: "$tripDesc" },
+          placesToVisit: { $push: "$itinerary.placeToVisit" },
+          totalMembers: { $first: { $size: "$tripMembers" } },
+          plannedBudget: { $first: "$plannedBudget" },
+          totalDays: { $first: "$totalDays" },
+          totalNights: { $first: "$totalNights" },
+        },
+      },
+      {
+        $project: {
+          _id: 0, // Exclude _id from the final output
+          tripName: 1,
+          tripDesc: 1,
+          placesToVisit: 1,
+          totalMembers: 1,
+          plannedBudget: 1,
+          totalDays: 1,
+          totalNights: 1,
+        },
+      },
+    ]);
+
+    if (summary.length === 0) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Trip Details could not be found !!"));
+    }
+    return res.status(200).json(
+      new ApiResponse(200, summary[0], "Trip Summary fetched successfully !!") // Fix: Access the first element of the summary array
+    );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
 const deleteTrip = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
 
@@ -347,4 +429,5 @@ export {
   removeTripMember,
   addSingleItineraryItem,
   updateTripPlan,
+  getTripSummary,
 };

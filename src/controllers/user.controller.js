@@ -104,8 +104,8 @@ const registerUser = asyncHandler(async (req, res) => {
   // avatar not found: throw error
   if (!avatarImageLocalPath)
     return res
-      .status(400)
-      .json(new ApiResponse(400, "", "Profile Image is Required !!"));
+      .status(401)
+      .json(new ApiResponse(401, "", "Profile Image is Required !!"));
 
   //upload on cloudinary
   const avatar = await uploadOnCloudinary(avatarImageLocalPath);
