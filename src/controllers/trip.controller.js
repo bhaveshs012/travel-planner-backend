@@ -87,7 +87,7 @@ const createTripPlan = asyncHandler(async (req, res) => {
     coverImage: coverImage?.url || "",
     startDate,
     endDate,
-    itinerary: itinerary,
+    itinerary: JSON.parse(itinerary),
     tripMembers: [userId],
     plannedBudget,
     createdBy: userId,
@@ -394,7 +394,6 @@ const getTripSummary = asyncHandler(async (req, res) => {
 
 const getTripExpenseSummary = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
-
   try {
     const summary = await TripPlan.aggregate([
       {

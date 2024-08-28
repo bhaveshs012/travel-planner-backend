@@ -167,99 +167,6 @@ const getTripExpenses = asyncHandler(async (req, res) => {
   }
 });
 
-const getTripExpenseSummary = asyncHandler(async (req, res) => {
-  const { tripId } = req.params;
-  try {
-    const tripExpenseSummary = await Expense.aggregate([
-      {
-        $match: {
-          tripId: mongoose.Types.ObjectId(tripId), // Replace with your specific tripId
-        },
-      },
-      {
-        $lookup: {
-          from: "tripplans",
-          localField: "tripId",
-          foreignField: "_id",
-          as: "tripDetails",
-        },
-      },
-      {
-        $unwind: {
-          path: "$tripDetails",
-          preserveNullAndEmptyArrays: true, // Preserve documents even if no match is found in expenses
-        },
-      },
-      {
-        $group: {
-          _id: "$tripId",
-          tripDetails: { $first: "$tripDetails" },
-          totalExpenses: { $sum: "$amount" }, // Sum of expenses, will be 0 if no expenses exist
-        },
-      },
-      {
-        $addFields: {
-          totalExpenses: {
-            $ifNull: ["$totalExpenses", 0], // Ensure totalExpenses is 0 if no expenses exist
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          tripName: "$tripDetails.tripName",
-          tripDesc: "$tripDetails.tripDesc",
-          placesToVisit: {
-            $ifNull: ["$tripDetails.itinerary.placeToVisit", []],
-          },
-          totalMembers: { $size: "$tripDetails.tripMembers" },
-          plannedBudget: "$tripDetails.plannedBudget",
-          totalDays: {
-            $dateDiff: {
-              startDate: "$tripDetails.startDate",
-              endDate: "$tripDetails.endDate",
-              unit: "day",
-            },
-          },
-          totalNights: {
-            $subtract: [
-              {
-                $dateDiff: {
-                  startDate: "$tripDetails.startDate",
-                  endDate: "$tripDetails.endDate",
-                  unit: "day",
-                },
-              },
-              1,
-            ],
-          },
-          totalExpenses: 1, // Output total expenses
-        },
-      },
-    ]);
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          tripExpenseSummary,
-          "Trip Summary and Total Expenses Fetched Successfully !!"
-        )
-      );
-  } catch (error) {
-    return res
-      .status(500)
-      .json(
-        new ApiResponse(
-          500,
-          error.toString(),
-          "Server Error :: Could not Fetch the Expense Summary !!"
-        )
-      );
-  }
-});
-
 const getCategoryWiseExpensesForEachYear = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   if (!userId) {
@@ -651,7 +558,6 @@ const getAmountOwedByUser = asyncHandler(async (req, res) => {
 export {
   addExpense,
   getTripExpenses,
-  getTripExpenseSummary,
   getCategoryWiseExpensesForEachYear,
   getMonthwiseExpensesForEachYear,
   getAmountContributedByEachUser,
