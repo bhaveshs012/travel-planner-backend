@@ -47,27 +47,6 @@ const createTripPlan = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Itinerary must be a non-empty array!");
   }
 
-  // Validate trip members
-  if (!tripMembers || !Array.isArray(tripMembers) || tripMembers.length === 0) {
-    throw new ApiError(400, "Trip members must be a non-empty array!");
-  }
-
-  // change the trip members to exclude the creater of the trip :
-  // then send invite to others
-  const invitations = await Promise.all(
-    invitees.map(async (invitee) => {
-      return await Invitation.create({
-        tripId: trip._id,
-        inviter: userId,
-        invitee: invitee,
-      });
-    })
-  );
-
-  if (invitations.length !== invitees.length) {
-    throw new ApiError(500, "Some invitations could not be sent");
-  }
-
   // Validate planned budget
   if (
     plannedBudget === undefined ||
@@ -108,7 +87,7 @@ const createTripPlan = asyncHandler(async (req, res) => {
     coverImage: coverImage?.url || "",
     startDate,
     endDate,
-    itinerary: JSON.parse(itinerary),
+    itinerary: itinerary,
     tripMembers: [userId],
     plannedBudget,
     createdBy: userId,
@@ -122,6 +101,22 @@ const createTripPlan = asyncHandler(async (req, res) => {
       500,
       "Something went wrong while creating the Trip Plan !!"
     );
+  }
+
+  // change the trip members to exclude the creater of the trip :
+  // then send invite to others
+  const invitations = await Promise.all(
+    tripMembers.map(async (invitee) => {
+      return await Invitation.create({
+        tripId: tripPlan._id,
+        inviter: userId,
+        invitee: invitee,
+      });
+    })
+  );
+
+  if (tripMembers.length !== 0 && invitations.length !== tripMembers.length) {
+    throw new ApiError(500, "Some invitations could not be sent");
   }
 
   res
@@ -397,6 +392,122 @@ const getTripSummary = asyncHandler(async (req, res) => {
   }
 });
 
+const getTripExpenseSummary = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+
+  try {
+    const summary = await TripPlan.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(tripId),
+        },
+      },
+      {
+        $addFields: {
+          totalDays: {
+            $dateDiff: {
+              startDate: "$startDate",
+              endDate: "$endDate",
+              unit: "day",
+            },
+          },
+          totalNights: {
+            $subtract: [
+              {
+                $dateDiff: {
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  unit: "day",
+                },
+              },
+              1,
+            ],
+          },
+        },
+      },
+      {
+        $unwind: {
+          path: "$itinerary",
+          preserveNullAndEmptyArrays: true, // Handle cases with empty itinerary
+        },
+      },
+      {
+        $lookup: {
+          from: "expenses", // Collection name in MongoDB
+          let: { tripId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$tripId", "$$tripId"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: "$tripId",
+                totalExpenses: { $sum: "$amount" },
+              },
+            },
+          ],
+          as: "expenses",
+        },
+      },
+      {
+        $unwind: {
+          path: "$expenses",
+          preserveNullAndEmptyArrays: true, // Handle cases with no expenses
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          tripName: { $first: "$tripName" },
+          tripDesc: { $first: "$tripDesc" },
+          placesToVisit: { $push: "$itinerary.placeToVisit" },
+          totalMembers: { $first: { $size: "$tripMembers" } },
+          plannedBudget: { $first: "$plannedBudget" },
+          totalDays: { $first: "$totalDays" },
+          totalNights: { $first: "$totalNights" },
+          totalExpenses: {
+            $first: { $ifNull: ["$expenses.totalExpenses", 0] },
+          }, // Include total expenses
+        },
+      },
+      {
+        $project: {
+          _id: 0, // Exclude _id from the final output
+          tripName: 1,
+          tripDesc: 1,
+          placesToVisit: 1,
+          totalMembers: 1,
+          plannedBudget: 1,
+          totalDays: 1,
+          totalNights: 1,
+          totalExpenses: 1,
+        },
+      },
+    ]);
+
+    if (summary.length === 0) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Trip Details could not be found !!"));
+    }
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        summary[0],
+        "Trip Expense Summary fetched successfully !!"
+      ) // Fix: Access the first element of the summary array
+    );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
 const deleteTrip = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
 
@@ -430,4 +541,5 @@ export {
   addSingleItineraryItem,
   updateTripPlan,
   getTripSummary,
+  getTripExpenseSummary,
 };
