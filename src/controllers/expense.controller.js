@@ -76,6 +76,20 @@ const getTripExpenses = asyncHandler(async (req, res) => {
           tripId: new mongoose.Types.ObjectId(tripId),
         },
       },
+      // Group to calculate total expenses
+      {
+        $group: {
+          _id: "$tripId",
+          totalExpenses: { $sum: "$amount" },
+          expenses: { $push: "$$ROOT" }, // Push all expense documents to an array
+        },
+      },
+      {
+        $unwind: "$expenses", // Unwind the expenses array for further processing
+      },
+      {
+        $replaceRoot: { newRoot: "$expenses" }, // Replace root with each expense document
+      },
       {
         $lookup: {
           from: "tripplans",
@@ -90,6 +104,7 @@ const getTripExpenses = asyncHandler(async (req, res) => {
       {
         $addFields: {
           plannedBudget: "$tripDetails.plannedBudget", // Add plannedBudget field
+          totalExpenses: "$totalExpenses", // Include totalExpenses field
         },
       },
       // Lookup to get details of the user who paid
@@ -138,14 +153,16 @@ const getTripExpenses = asyncHandler(async (req, res) => {
           paidBy: {
             name: "$paidByDetails.fullName", // Include the name of the user who paid
             avatar: "$paidByDetails.avatar", // Include the avatar of the user who paid
-          }, // Include the name of the user who paid
+          },
           amount: 1,
           paymentDate: 1,
           plannedBudget: 1, // Include plannedBudget
+          totalExpenses: 1, // Include total expenses for the trip
           splitBetween: "$splitBetweenDetails", // Include details of users in splitBetween
         },
       },
     ]);
+
     if (tripExpenses.length === 0) {
       return res
         .status(200)
@@ -400,14 +417,14 @@ const getAmountOwedToTheUser = asyncHandler(async (req, res) => {
       {
         $group: {
           _id: "$splitBetween", // Group by users in splitBetween
-          totalOwed: { $sum: { $divide: ["$amount", "$splitCount"] } }, // Divide the amount by the number of people splitting the cost
+          totalAmount: { $sum: { $divide: ["$amount", "$splitCount"] } }, // Divide the amount by the number of people splitting the cost
         },
       },
       {
         $project: {
           _id: 0,
           user: "$_id", // Include user ID
-          totalOwed: 1, // Include total amount owed
+          totalAmount: 1, // Include total amount owed
         },
       },
       // remove the split for his own expense
@@ -435,7 +452,7 @@ const getAmountOwedToTheUser = asyncHandler(async (req, res) => {
         $project: {
           fullName: "$userDetails.fullName",
           avatar: "$userDetails.avatar",
-          totalOwed: 1,
+          totalAmount: 1,
         },
       },
     ]);
@@ -498,7 +515,7 @@ const getAmountOwedByUser = asyncHandler(async (req, res) => {
       {
         $group: {
           _id: "$splitBetween", // Group by users in splitBetween
-          totalOwed: { $sum: { $divide: ["$amount", "$numberOfSplits"] } },
+          totalAmount: { $sum: { $divide: ["$amount", "$numberOfSplits"] } },
         }, // Divide the amount by the number of people splitting the cost
       },
       {
@@ -523,7 +540,7 @@ const getAmountOwedByUser = asyncHandler(async (req, res) => {
         $project: {
           fullName: "$userDetails.fullName",
           avatar: "$userDetails.avatar",
-          totalOwed: "$totalOwed",
+          totalAmount: "$totalAmount",
           _id: 0,
         },
       },

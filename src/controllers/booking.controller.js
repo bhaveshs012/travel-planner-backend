@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Booking } from "../models/booking.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import mongoose from "mongoose";
 
 const addBooking = asyncHandler(async (req, res) => {
   const { tripId, bookingType, bookingDetails } = req.body;
@@ -48,9 +49,47 @@ const getBookings = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Trip Id cannot be NULL !!");
   }
 
-  const bookings = await Booking.find({
-    tripId,
-  });
+  const bookings = await Booking.aggregate([
+    {
+      $match: {
+        tripId: new mongoose.Types.ObjectId(tripId),
+      },
+    },
+    {
+      $lookup: {
+        from: "tripplans",
+        localField: "tripId",
+        foreignField: "_id",
+        as: "tripDetails",
+      },
+    },
+    {
+      $unwind: "$tripDetails",
+    },
+    {
+      $group: {
+        _id: "$tripDetails._id",
+        tripName: { $first: "$tripDetails.tripName" },
+        tripDesc: { $first: "$tripDetails.tripDesc" },
+        bookings: {
+          $push: {
+            bookingDetails: "$bookingDetails",
+            bookingType: "$bookingType",
+            bookingReceipt: "$bookingReceipt",
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        tripId: "$_id",
+        tripName: 1,
+        tripDesc: 1,
+        bookings: 1,
+      },
+    },
+  ]);
   if (!bookings) {
     return res
       .status(400)
@@ -63,7 +102,7 @@ const getBookings = asyncHandler(async (req, res) => {
   }
   return res
     .status(201)
-    .json(new ApiResponse(201, bookings, "Booking Fetched Successfully"));
+    .json(new ApiResponse(201, bookings[0], "Booking Fetched Successfully"));
 });
 
 const dummyCheck = asyncHandler(async (req, res) => {

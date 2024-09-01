@@ -4,7 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
-import { cookieOptions } from "../utils/cookieOptions.js";
+import cookieOptions from "../utils/cookieOptions.js";
 import { TripPlan } from "../models/trip.model.js";
 import { Invitation } from "../models/invitation.model.js";
 
@@ -196,7 +196,7 @@ const loginUser = asyncHandler(async (req, res) => {
   );
 
   // send the response
-  res
+  return res
     .status(200)
     .cookie("accessToken", accessToken, cookieOptions)
     .cookie("refreshToken", refreshToken, cookieOptions)

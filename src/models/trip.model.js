@@ -45,11 +45,11 @@ const tripPlanSchema = new Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        
       },
     ],
     plannedBudget: {
       type: Number,
+      default: 0,
       validate: {
         validator: function (value) {
           return value > 0;

@@ -13,18 +13,16 @@ import {
 const expenseRouter = Router();
 //* Based on Trips
 expenseRouter.route("/addExpense").post(verifyJWT, addExpense);
-expenseRouter
-  .route("/:tripId/getTripExpenses")
-  .post(verifyJWT, getTripExpenses);
+expenseRouter.route("/:tripId/getTripExpenses").get(verifyJWT, getTripExpenses);
 expenseRouter
   .route("/:tripId/getAmountContributedByEachUser")
-  .post(verifyJWT, getAmountContributedByEachUser);
+  .get(verifyJWT, getAmountContributedByEachUser);
 expenseRouter
   .route("/:tripId/getAmountOwedToTheUser")
-  .post(verifyJWT, getAmountOwedToTheUser);
+  .get(verifyJWT, getAmountOwedToTheUser);
 expenseRouter
   .route("/:tripId/getAmountOwedByUser")
-  .post(verifyJWT, getAmountOwedByUser);
+  .get(verifyJWT, getAmountOwedByUser);
 
 //* These are based on users
 expenseRouter

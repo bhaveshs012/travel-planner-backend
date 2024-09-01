@@ -314,91 +314,13 @@ const removeTripMember = asyncHandler(async (req, res) => {
 //* Get Trip Summary
 const getTripSummary = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
-  const objectId = new mongoose.Types.ObjectId(tripId);
   try {
     const summary = await TripPlan.aggregate([
       {
         $match: {
-          _id: objectId,
-        },
-      },
-      {
-        $addFields: {
-          totalDays: {
-            $dateDiff: {
-              startDate: "$startDate",
-              endDate: "$endDate",
-              unit: "day",
-            },
+          _id: {
+            $eq: new mongoose.Types.ObjectId(tripId),
           },
-          totalNights: {
-            $subtract: [
-              {
-                $dateDiff: {
-                  startDate: "$startDate",
-                  endDate: "$endDate",
-                  unit: "day",
-                },
-              },
-              1,
-            ],
-          },
-        },
-      },
-      {
-        $unwind: {
-          path: "$itinerary",
-          preserveNullAndEmptyArrays: true, // Handle cases with empty itinerary
-        },
-      },
-      {
-        $group: {
-          _id: "$_id",
-          tripName: { $first: "$tripName" },
-          tripDesc: { $first: "$tripDesc" },
-          placesToVisit: { $push: "$itinerary.placeToVisit" },
-          totalMembers: { $first: { $size: "$tripMembers" } },
-          plannedBudget: { $first: "$plannedBudget" },
-          totalDays: { $first: "$totalDays" },
-          totalNights: { $first: "$totalNights" },
-        },
-      },
-      {
-        $project: {
-          _id: 0, // Exclude _id from the final output
-          tripName: 1,
-          tripDesc: 1,
-          placesToVisit: 1,
-          totalMembers: 1,
-          plannedBudget: 1,
-          totalDays: 1,
-          totalNights: 1,
-        },
-      },
-    ]);
-
-    if (summary.length === 0) {
-      return res
-        .status(200)
-        .json(new ApiResponse(200, {}, "Trip Details could not be found !!"));
-    }
-    return res.status(200).json(
-      new ApiResponse(200, summary[0], "Trip Summary fetched successfully !!") // Fix: Access the first element of the summary array
-    );
-  } catch (error) {
-    return res
-      .status(500)
-      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
-  }
-});
-
-const getTripExpenseSummary = asyncHandler(async (req, res) => {
-  const { tripId } = req.params;
-  try {
-    const summary = await TripPlan.aggregate([
-      {
-        $match: {
-          _id: new mongoose.Types.ObjectId(tripId),
         },
       },
       {
@@ -475,7 +397,8 @@ const getTripExpenseSummary = asyncHandler(async (req, res) => {
       },
       {
         $project: {
-          _id: 0, // Exclude _id from the final output
+          _id: 0,
+          tripId: "$_id",
           tripName: 1,
           tripDesc: 1,
           placesToVisit: 1,
@@ -497,6 +420,386 @@ const getTripExpenseSummary = asyncHandler(async (req, res) => {
       new ApiResponse(
         200,
         summary[0],
+        "Trip Expense Summary fetched successfully !!"
+      ) // Fix: Access the first element of the summary array
+    );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
+const getTripDashboardSummary = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  const currentDate = new Date();
+
+  try {
+    const summary = await TripPlan.aggregate([
+      // Stage 1: Filter trips where the user is either a creator or a member
+      {
+        $match: {
+          $or: [
+            { createdBy: new mongoose.Types.ObjectId(userId) },
+            { tripMembers: new mongoose.Types.ObjectId(userId) },
+          ],
+        },
+      },
+      // Stage 2: Unwind the itinerary to handle placesToVisit
+      {
+        $unwind: {
+          path: "$itinerary",
+          preserveNullAndEmptyArrays: true, // Handle cases with empty itinerary
+        },
+      },
+      // Stage 3: Add a flag to identify trip type (upcoming, created, joined)
+      {
+        $addFields: {
+          isUpcoming: { $gte: ["$startDate", currentDate] },
+          isCreatedByUser: {
+            $eq: ["$createdBy", new mongoose.Types.ObjectId(userId)],
+          },
+          totalDays: {
+            $dateDiff: {
+              startDate: "$startDate",
+              endDate: "$endDate",
+              unit: "day",
+            },
+          },
+          totalNights: {
+            $subtract: [
+              {
+                $dateDiff: {
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  unit: "day",
+                },
+              },
+              1,
+            ],
+          },
+        },
+      },
+      // Stage 4: Group trips by trip type and aggregate placesToVisit
+      {
+        $group: {
+          _id: "$_id", // Use _id for grouping (tripId)
+          tripName: { $first: "$tripName" },
+          tripDesc: { $first: "$tripDesc" },
+          startDate: { $first: "$startDate" },
+          endDate: { $first: "$endDate" },
+          totalDays: { $first: "$totalDays" },
+          totalNights: { $first: "$totalNights" },
+          totalMembers: { $first: { $size: "$tripMembers" } },
+          plannedBudget: { $first: "$plannedBudget" },
+          placesToVisit: { $push: "$itinerary.placeToVisit" },
+          isUpcoming: { $first: "$isUpcoming" },
+          isCreatedByUser: { $first: "$isCreatedByUser" },
+          tripMembers: { $first: "$tripMembers" },
+          createdBy: { $first: "$createdBy" },
+        },
+      },
+      // Stage 5: Separate trips into upcoming, created, and joined
+      {
+        $group: {
+          _id: null,
+          upcomingTrip: {
+            $push: {
+              $cond: {
+                if: {
+                  $and: [
+                    "$isUpcoming",
+                    {
+                      $in: [
+                        new mongoose.Types.ObjectId(userId),
+                        "$tripMembers",
+                      ],
+                    },
+                  ],
+                },
+                then: {
+                  tripId: "$_id", // Include tripId here
+                  tripName: "$tripName",
+                  tripDesc: "$tripDesc",
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  totalDays: "$totalDays",
+                  totalNights: "$totalNights",
+                  totalMembers: "$totalMembers",
+                  plannedBudget: "$plannedBudget",
+                  placesToVisit: "$placesToVisit",
+                },
+                else: null,
+              },
+            },
+          },
+          createdTrips: {
+            $push: {
+              $cond: {
+                if: "$isCreatedByUser",
+                then: {
+                  tripId: "$_id", // Include tripId here
+                  tripName: "$tripName",
+                  tripDesc: "$tripDesc",
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  totalDays: "$totalDays",
+                  totalNights: "$totalNights",
+                  totalMembers: "$totalMembers",
+                  plannedBudget: "$plannedBudget",
+                  placesToVisit: "$placesToVisit",
+                },
+                else: null,
+              },
+            },
+          },
+          joinedTrips: {
+            $push: {
+              $cond: {
+                if: {
+                  $and: [
+                    {
+                      $ne: ["$createdBy", new mongoose.Types.ObjectId(userId)],
+                    },
+                    {
+                      $in: [
+                        new mongoose.Types.ObjectId(userId),
+                        "$tripMembers",
+                      ],
+                    },
+                  ],
+                },
+                then: {
+                  tripId: "$_id", // Include tripId here
+                  tripName: "$tripName",
+                  tripDesc: "$tripDesc",
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  totalDays: "$totalDays",
+                  totalNights: "$totalNights",
+                  totalMembers: "$totalMembers",
+                  plannedBudget: "$plannedBudget",
+                  placesToVisit: "$placesToVisit",
+                },
+                else: null,
+              },
+            },
+          },
+        },
+      },
+      // Stage 6: Clean up the output arrays
+      {
+        $project: {
+          _id: 0,
+          upcomingTrip: {
+            $filter: {
+              input: "$upcomingTrip",
+              as: "trip",
+              cond: { $ne: ["$$trip", null] },
+            },
+          },
+          createdTrips: {
+            $filter: {
+              input: "$createdTrips",
+              as: "trip",
+              cond: { $ne: ["$$trip", null] },
+            },
+          },
+          joinedTrips: {
+            $filter: {
+              input: "$joinedTrips",
+              as: "trip",
+              cond: { $ne: ["$$trip", null] },
+            },
+          },
+        },
+      },
+      // Stage 7: Handle empty arrays for upcoming, created, and joined trips
+      {
+        $addFields: {
+          upcomingTrip: {
+            $cond: {
+              if: { $gt: [{ $size: "$upcomingTrip" }, 0] },
+              then: { $arrayElemAt: ["$upcomingTrip", 0] },
+              else: [], // Return empty array if no upcoming trip
+            },
+          },
+          createdTrips: {
+            $cond: {
+              if: { $gt: [{ $size: "$createdTrips" }, 0] },
+              then: "$createdTrips",
+              else: [], // Return empty array if no created trips
+            },
+          },
+          joinedTrips: {
+            $cond: {
+              if: { $gt: [{ $size: "$joinedTrips" }, 0] },
+              then: "$joinedTrips",
+              else: [], // Return empty array if no joined trips
+            },
+          },
+        },
+      },
+    ]);
+
+    if (!summary.length) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "No trips found for the user !!"));
+    }
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        summary[0], // Access the first element as the summary is grouped by _id: null
+        "Trip Dashboard Summary fetched successfully !!"
+      )
+    );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
+const getTripExpenseSummaryForUser = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  try {
+    const summary = await TripPlan.aggregate([
+      {
+        $match: {
+          tripMembers: {
+            $in: [new mongoose.Types.ObjectId(userId)],
+          },
+        },
+      },
+      {
+        $addFields: {
+          totalDays: {
+            $dateDiff: {
+              startDate: "$startDate",
+              endDate: "$endDate",
+              unit: "day",
+            },
+          },
+          totalNights: {
+            $subtract: [
+              {
+                $dateDiff: {
+                  startDate: "$startDate",
+                  endDate: "$endDate",
+                  unit: "day",
+                },
+              },
+              1,
+            ],
+          },
+        },
+      },
+      {
+        $unwind: {
+          path: "$itinerary",
+          preserveNullAndEmptyArrays: true, // Handle cases with empty itinerary
+        },
+      },
+      {
+        $lookup: {
+          from: "expenses", // Collection name in MongoDB
+          let: { tripId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$tripId", "$$tripId"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: "$tripId",
+                totalExpenses: { $sum: "$amount" },
+              },
+            },
+          ],
+          as: "expenses",
+        },
+      },
+      {
+        $unwind: {
+          path: "$expenses",
+          preserveNullAndEmptyArrays: true, // Handle cases with no expenses
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          tripName: { $first: "$tripName" },
+          tripDesc: { $first: "$tripDesc" },
+          tripMembers: { $first: "$tripMembers" },
+          placesToVisit: {
+            $push: "$itinerary.placeToVisit",
+          },
+          totalMembers: {
+            $first: { $size: "$tripMembers" },
+          },
+          plannedBudget: { $first: "$plannedBudget" },
+          totalDays: { $first: "$totalDays" },
+          totalNights: { $first: "$totalNights" },
+          totalExpenses: {
+            $first: {
+              $ifNull: ["$expenses.totalExpenses", 0],
+            },
+          }, // Include total expenses
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "tripMembers",
+          foreignField: "_id",
+          as: "tripMembers",
+        },
+      },
+      {
+        $addFields: {
+          tripMembers: {
+            $map: {
+              input: "$tripMembers",
+              as: "user",
+              in: {
+                name: "$$user.fullName", // Include only the name
+                image: "$$user.avatar", // Include only the image
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          tripId: "$_id",
+          tripName: 1,
+          tripDesc: 1,
+          tripMembers: 1,
+          placesToVisit: 1,
+          totalMembers: 1,
+          plannedBudget: 1,
+          totalDays: 1,
+          totalNights: 1,
+          totalExpenses: 1,
+        },
+      },
+    ]);
+
+    if (summary.length === 0) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Trip Details could not be found !!"));
+    }
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        summary,
         "Trip Expense Summary fetched successfully !!"
       ) // Fix: Access the first element of the summary array
     );
@@ -540,5 +843,6 @@ export {
   addSingleItineraryItem,
   updateTripPlan,
   getTripSummary,
-  getTripExpenseSummary,
+  getTripExpenseSummaryForUser,
+  getTripDashboardSummary,
 };
