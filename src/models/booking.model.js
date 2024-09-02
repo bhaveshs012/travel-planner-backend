@@ -1,7 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
 // Sub Schemas for Booking Schema -> Two Types of Bookings -> Hotel and Travel
-const hotelBookingSchema = new mongoose.Schema(
+const hotelBookingSchema = new Schema(
   {
     hotelName: { type: String, required: true },
     checkInDate: { type: Date, required: true },
@@ -16,6 +16,7 @@ const travelBookingSchema = new mongoose.Schema(
     travelType: {
       type: String,
       required: true,
+      lowercase: true,
       enum: ["flight", "train", "cab", "others"],
     },
     source: { type: String, required: true, trim: true },

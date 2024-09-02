@@ -7,49 +7,67 @@ import { User } from "../models/user.model.js";
 import cookieOptions from "../utils/cookieOptions.js";
 import { TripPlan } from "../models/trip.model.js";
 import { Invitation } from "../models/invitation.model.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
+    // Find the user by ID
     const user = await User.findById(userId);
+
+    // Ensure the user exists
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Generate access and refresh tokens using user methods
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
 
-    // save refresh Token into the database
+    // Save the new refresh token in the database once
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
+    // Return the generated tokens
     return { accessToken, refreshToken };
   } catch (error) {
-    throw new ApiError(500, "Something went wrong while generating tokens");
+    console.error("Error generating tokens:", error);
+    throw new Error("Something went wrong while generating tokens");
   }
 };
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     const incomingRefreshToken =
-      req.cookie.refreshToken || req.body.refreshToken;
+      req.cookies.refreshToken || req.body.refreshToken;
 
-    if (!incomingRefreshToken)
+    if (!incomingRefreshToken) {
       throw new ApiError(401, "Unauthorized Access !!");
-    // decode the data present
+    }
+
+    // Decode the data present in the refresh token
     const decodedData = jwt.verify(
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
-    // check for id present
+
+    // Find the user by the ID present in the decoded token
     const user = await User.findById(decodedData?._id);
 
-    // if user null throw error
-    if (!user)
+    if (!user) {
       throw new ApiError(401, "Unauthorized Access !! Invalid Refresh Token");
-    // if incoming token !== user?.RT throw error
-    if (incomingRefreshToken !== user?.refreshToken)
+    }
+
+    // Check if the incoming token matches the one stored in the user's record
+    if (incomingRefreshToken !== user.refreshToken) {
       throw new ApiError(401, "Invalid Refresh Token !!");
+    }
 
-    // else generate new
-    const { accessToken, refreshToken } =
-      await generateAccessAndRefreshTokens();
+    // Generate new access and refresh tokens
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+      user._id
+    );
 
+    // Send the new tokens as cookies and in the response body
     return res
       .status(200)
       .cookie("accessToken", accessToken, cookieOptions)
@@ -57,7 +75,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          { accessToken, refreshToken: refreshToken },
+          { accessToken, refreshToken },
           "Access token refreshed"
         )
       );
@@ -275,14 +293,10 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
   const userId = req.user?.id;
 
-  //* Validate the Invitation -> needed only for backend testing -> when connected with front end : this will never occur
+  //* Validate the Invitation
   const invite = await Invitation.findOne({
-    $and: [
-      { tripId },
-      {
-        invitee: userId,
-      },
-    ],
+    tripId,
+    invitee: userId,
   });
 
   if (!invite) {
@@ -305,23 +319,10 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
     );
   }
   // If the addition was successful -> delete the invitation
-  const result = await Invitation.findOneAndDelete({
-    $and: [
-      {
-        tripId,
-      },
-      {
-        invitee: userId,
-      },
-    ],
+  await Invitation.findOneAndDelete({
+    tripId,
+    invitee: userId,
   });
-
-  if (!result) {
-    throw new ApiError(
-      500,
-      "Something went wrong while accepting the invite !!"
-    );
-  }
 
   res
     .status(200)

@@ -36,6 +36,10 @@ const userSchema = new Schema(
       type: String,
       required: [true, "Password is required"],
     },
+    refreshToken: {
+      type: String,
+      default: null, // Initialize refresh token field in the schema
+    },
   },
   { timestamps: true }
 );
@@ -52,7 +56,7 @@ userSchema.pre("save", async function (next) {
 
 //* Creating user methods:
 
-// For checking the password
+// For checking if the provided password is correct
 userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
@@ -60,33 +64,31 @@ userSchema.methods.isPasswordCorrect = async function (password) {
 // For generating the accessToken
 userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
-    // payload
     {
       _id: this._id,
       email: this.email,
       username: this.username,
       fullName: this.fullName,
     },
-    // secret key
     process.env.ACCESS_TOKEN_SECRET,
-    // options
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY, // Ensure this is set in your environment
     }
   );
 };
 
 // For generating the refreshToken
-userSchema.methods.generateRefreshToken =  function () {
+userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY, // Ensure this is set in your environment
     }
   );
 };
+
 
 export const User = mongoose.model("User", userSchema);
