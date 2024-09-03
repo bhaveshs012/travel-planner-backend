@@ -11,6 +11,7 @@ import {
   getTripSummary,
   inviteUserToTrip,
   removeTripMember,
+  searchTripMembers,
   updateTripPlan,
 } from "../controllers/trip.controller.js";
 
@@ -39,6 +40,7 @@ tripRouter
   .get(verifyJWT, getTripExpenseSummaryForUser);
 tripRouter.route("/:tripId").put(verifyJWT, updateTripPlan);
 tripRouter.route("/:tripId").delete(verifyJWT, deleteTrip);
+tripRouter.route("/:tripId/searchMembers").get(verifyJWT, searchTripMembers);
 tripRouter.route("/inviteToTrip").post(verifyJWT, inviteUserToTrip);
 tripRouter
   .route("/:tripId/:memberId/removeMember")

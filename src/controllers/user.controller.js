@@ -331,6 +331,8 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
     );
 });
 
+//* Search Users
+
 export {
   registerUser,
   loginUser,

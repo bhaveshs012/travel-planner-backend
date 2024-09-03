@@ -662,6 +662,78 @@ const getTripDashboardSummary = asyncHandler(async (req, res) => {
   }
 });
 
+//* Search Trip Members
+const searchTripMembers = asyncHandler(async (req, res) => {
+  const { searchParamater } = req.query;
+  const { tripId } = req.params;
+
+  console.log("Search: ", req.query);
+  console.log("Trip id: ", tripId);
+
+  try {
+    const filteredMembers = await TripPlan.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(tripId),
+        },
+      },
+      {
+        $unwind: "$tripMembers",
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "tripMembers",
+          foreignField: "_id",
+          as: "tripMembers",
+        },
+      },
+      {
+        $unwind: "$tripMembers",
+      },
+      {
+        $project: {
+          tripId: "$_id",
+          userId: "$tripMembers._id",
+          _id: 0,
+          fullName: "$tripMembers.fullName",
+          image: "$tripMembers.avatar",
+        },
+      },
+      {
+        $match: {
+          fullName: {
+            $regex: `^${searchParamater}`,
+            $options: "i",
+          },
+        },
+      },
+    ]);
+
+    if (!filteredMembers.length) {
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(200, {}, "Search Criteria could not be fulfilled !!")
+        );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          filteredMembers,
+          "Trip Members Filtered successfully !!"
+        )
+      );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
 const getTripExpenseSummaryForUser = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   try {
@@ -845,4 +917,5 @@ export {
   getTripSummary,
   getTripExpenseSummaryForUser,
   getTripDashboardSummary,
+  searchTripMembers,
 };
