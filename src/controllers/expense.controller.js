@@ -5,66 +5,71 @@ import { Expense } from "../models/expense.model.js";
 import mongoose from "mongoose";
 
 const addExpense = asyncHandler(async (req, res) => {
-  const {
-    tripId,
-    category,
-    description,
-    paidTo,
-    paidBy,
-    amount,
-    paymentDate,
-    splitBetween,
-  } = req.body;
+  try {
+    const { tripId } = req.params;
+    const { category, description, paidTo, amount, paymentDate, splitBetween } =
+      req.body;
 
-  // Validations
-  if (!paymentDate) {
-    throw new ApiError(400, "Payment Date is required !!");
-  } else if (isNaN(Date.parse(paymentDate))) {
-    throw new ApiError(400, "Payment Date is Invalid !!");
+    const paidBy = req.user?._id;
+
+    // Validations
+    if (!paymentDate) {
+      throw new ApiError(400, "Payment Date is required !!");
+    } else if (isNaN(Date.parse(paymentDate))) {
+      res
+        .status(400)
+        .json(new ApiResponse(400, [], "Payment Date is Invalid !!"));
+    } else if (Date.parse(paymentDate) > new Date()) {
+      res
+        .status(400)
+        .json(new ApiResponse(400, [], "Payment Date is Invalid !!"));
+    }
+    if (
+      !splitBetween ||
+      !Array.isArray(splitBetween) ||
+      splitBetween.length === 0
+    ) {
+      res
+        .status(400)
+        .json(new ApiResponse(400, [], "Split Between Zero Members !!"));
+    }
+
+    // Create the document
+    const expense = await Expense.create({
+      tripId,
+      category: category.toLowerCase(),
+      description,
+      paidTo,
+      paidBy,
+      amount,
+      paymentDate,
+      splitBetween,
+    });
+
+    // check is user is created
+    const createdExpense = await Expense.findById(expense._id);
+
+    if (!createdExpense) {
+      throw new ApiError(
+        500,
+        "Something went wrong while creating the Trip Plan !!"
+      );
+    }
+
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(
+          200,
+          createdExpense,
+          `Expense Added Successfully to Trip ${tripId} !!`
+        )
+      );
+  } catch (error) {
+    res
+      .status(500)
+      .json(new ApiResponse(500, error.message.toString(), "Server Issue !!"));
   }
-
-  if (
-    !splitBetween ||
-    !Array.isArray(splitBetween) ||
-    splitBetween.length === 0
-  ) {
-    throw new ApiError(
-      400,
-      "Split between must be a non-empty array of user IDs."
-    );
-  }
-
-  // Create the document
-  const expense = await Expense.create({
-    tripId,
-    category,
-    description,
-    paidTo,
-    paidBy,
-    amount,
-    paymentDate,
-    splitBetween,
-  });
-
-  // check is user is created
-  const createdExpense = await Expense.findById(expense._id);
-
-  if (!createdExpense) {
-    throw new ApiError(
-      500,
-      "Something went wrong while creating the Trip Plan !!"
-    );
-  }
-
-  return res
-    .status(201)
-    .json(
-      new ApiResponse(
-        200,
-        createdExpense,
-        `Expense Added Successfully to Trip ${tripId} !!`
-      )
-    );
 });
 
 const getTripExpenses = asyncHandler(async (req, res) => {

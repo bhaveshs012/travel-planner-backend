@@ -331,7 +331,48 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
     );
 });
 
-//* Search Users
+//* Search Users Based on Search Parameter
+const searchUsers = asyncHandler(async (req, res) => {
+  const { searchParameter } = req.query;
+
+  try {
+    const filteredMembers = await User.aggregate([
+      {
+        $match: {
+          username: {
+            $regex: `^${searchParameter}`,
+            $options: "i", // To make the search case insensitive
+          },
+        },
+      },
+      {
+        $project: {
+          userId: "$_id",
+          fullName: "$fullName",
+          avatar: "$avatar",
+          _id: 0,
+        },
+      },
+    ]);
+    if (!filteredMembers.length) {
+      return res
+        .status(200)
+        .json(
+          new ApiResponse(200, [], "Search Criteria could not be fulfilled !!")
+        );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, filteredMembers, "Users Filtered successfully !!")
+      );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
 
 export {
   registerUser,
@@ -343,4 +384,5 @@ export {
   getTripsCreatedByUser,
   getTripsJoinedByUser,
   acceptTripInvitation,
+  searchUsers,
 };

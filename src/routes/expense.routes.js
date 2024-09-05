@@ -12,7 +12,7 @@ import {
 
 const expenseRouter = Router();
 //* Based on Trips
-expenseRouter.route("/addExpense").post(verifyJWT, addExpense);
+expenseRouter.route("/:tripId/addExpense").post(verifyJWT, addExpense);
 expenseRouter.route("/:tripId/getTripExpenses").get(verifyJWT, getTripExpenses);
 expenseRouter
   .route("/:tripId/getAmountContributedByEachUser")

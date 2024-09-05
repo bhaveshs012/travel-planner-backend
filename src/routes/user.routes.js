@@ -7,6 +7,7 @@ import {
   getCurrentUser,
   getTripsCreatedByUser,
   acceptTripInvitation,
+  searchUsers,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -29,10 +30,13 @@ userRouter.route("/register").post(
 );
 userRouter.route("/login").post(loginUser);
 
-// Secured Routes
+//* Secured Routes
 userRouter.route("/logout").post(verifyJWT, logoutUser);
 userRouter.route("/refresh-token").post(refreshAccessToken);
 userRouter.route("/current-user").get(verifyJWT, getCurrentUser);
+
+//* Search All Users
+userRouter.route("/searchUsers").get(verifyJWT, searchUsers);
 
 //* Trips Related
 userRouter

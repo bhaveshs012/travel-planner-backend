@@ -662,16 +662,108 @@ const getTripDashboardSummary = asyncHandler(async (req, res) => {
   }
 });
 
-//* Search Trip Members
-const searchTripMembers = asyncHandler(async (req, res) => {
-  const { searchParamater } = req.query;
+//* Get Users -> Based on Trips and Invitations
+const getInvitedAndAddedMembers = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
 
-  console.log("Search: ", req.query);
-  console.log("Trip id: ", tripId);
+  try {
+    const usersList = await TripPlan.aggregate([
+      {
+        $match: { _id: new mongoose.Types.ObjectId(tripId) }, // Match the trip by its ID
+      },
+      {
+        $lookup: {
+          from: "invitations",
+          localField: "_id",
+          foreignField: "tripId",
+          as: "invitedUsers",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "tripMembers",
+          foreignField: "_id",
+          as: "tripMembers",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "invitedUsers.invitee",
+          foreignField: "_id",
+          as: "invitedMembers",
+        },
+      },
+      {
+        $addFields: {
+          tripMembers: {
+            $map: {
+              input: "$tripMembers",
+              as: "member",
+              in: {
+                _id: "$$member._id",
+                fullName: "$$member.fullName",
+                avatar: "$$member.avatar",
+                userType: "member",
+              },
+            },
+          },
+          invitedMembers: {
+            $map: {
+              input: "$invitedMembers",
+              as: "invitee",
+              in: {
+                _id: "$$invitee._id",
+                fullName: "$$invitee.fullName",
+                avatar: "$$invitee.avatar",
+                userType: "invited",
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          users: {
+            $concatArrays: ["$tripMembers", "$invitedMembers"], // Merge members and invited users
+          },
+        },
+      },
+      {
+        $unwind: "$users", // Flatten the users array
+      },
+      {
+        $replaceRoot: {
+          newRoot: "$users", // Return only user data
+        },
+      },
+    ]);
+
+    if (!usersList.length) {
+      return res
+        .status(200)
+        .json(new ApiResponse(200, [], "No Users found !!"));
+    }
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, usersList, "Trip Members Fetched successfully !!")
+      );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+  }
+});
+
+//* Search Trip Members
+const searchTripMembers = asyncHandler(async (req, res) => {
+  const { searchParameter } = req.query;
+  const { tripId } = req.params;
 
   try {
-    const filteredMembers = await TripPlan.aggregate([
+    const aggregationPipeline = [
       {
         $match: {
           _id: new mongoose.Types.ObjectId(tripId),
@@ -700,21 +792,35 @@ const searchTripMembers = asyncHandler(async (req, res) => {
           image: "$tripMembers.avatar",
         },
       },
-      {
+    ];
+
+    // Add name filtering only if searchParameter is provided
+    if (searchParameter) {
+      aggregationPipeline.push({
         $match: {
           fullName: {
-            $regex: `^${searchParamater}`,
+            $regex: `^${searchParameter}`,
             $options: "i",
           },
         },
-      },
-    ]);
+      });
+    } else {
+      aggregationPipeline.push({
+        $limit: 5,
+      });
+    }
+
+    const filteredMembers = await TripPlan.aggregate(aggregationPipeline);
 
     if (!filteredMembers.length) {
       return res
         .status(200)
         .json(
-          new ApiResponse(200, {}, "Search Criteria could not be fulfilled !!")
+          new ApiResponse(
+            200,
+            [],
+            "No trip members found matching the criteria."
+          )
         );
     }
 
@@ -724,13 +830,13 @@ const searchTripMembers = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           filteredMembers,
-          "Trip Members Filtered successfully !!"
+          "Trip members retrieved successfully."
         )
       );
   } catch (error) {
     return res
       .status(500)
-      .json(new ApiResponse(500, error.toString(), "Server Error !!"));
+      .json(new ApiResponse(500, error.toString(), "Server Error."));
   }
 });
 
@@ -918,4 +1024,5 @@ export {
   getTripExpenseSummaryForUser,
   getTripDashboardSummary,
   searchTripMembers,
+  getInvitedAndAddedMembers,
 };
