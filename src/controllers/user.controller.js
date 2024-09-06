@@ -349,7 +349,7 @@ const searchUsers = asyncHandler(async (req, res) => {
         $project: {
           userId: "$_id",
           fullName: "$fullName",
-          avatar: "$avatar",
+          image: "$avatar",
           _id: 0,
         },
       },

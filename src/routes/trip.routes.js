@@ -18,16 +18,7 @@ import {
 
 const tripRouter = Router();
 
-tripRouter.route("/createTripPlan").post(
-  upload.fields([
-    {
-      name: "coverImage",
-      maxCount: 1, // no. of files
-    },
-  ]),
-  verifyJWT,
-  createTripPlan
-);
+tripRouter.route("/createTripPlan").post(verifyJWT, createTripPlan);
 tripRouter
   .route("/getTripDashboardSummary")
   .get(verifyJWT, getTripDashboardSummary);
@@ -39,7 +30,7 @@ tripRouter.route("/:tripId/getSummary").get(verifyJWT, getTripSummary);
 tripRouter
   .route("/getTripExpenseSummaryForUser")
   .get(verifyJWT, getTripExpenseSummaryForUser);
-tripRouter.route("/:tripId").put(verifyJWT, updateTripPlan);
+tripRouter.route("/:tripId").patch(verifyJWT, updateTripPlan);
 tripRouter.route("/:tripId").delete(verifyJWT, deleteTrip);
 
 //* User Related

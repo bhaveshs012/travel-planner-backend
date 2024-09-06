@@ -1,95 +1,22 @@
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { TripPlan } from "../models/trip.model.js";
 import { Invitation } from "../models/invitation.model.js";
 import mongoose from "mongoose";
 
 const createTripPlan = asyncHandler(async (req, res) => {
-  const {
-    tripName,
-    tripDesc,
-    startDate,
-    endDate,
-    itinerary,
-    tripMembers,
-    plannedBudget,
-    notes,
-  } = req.body;
+  const { tripName, tripDesc, startDate, endDate, tripMembers } = req.body;
 
   const userId = req.user?._id;
-
-  // Validations
-
-  if ([tripName, tripDesc].some((field) => !field || field.trim() === "")) {
-    throw new ApiError(400, "Trip name and description are required!");
-  }
-
-  // Validate dates
-  if (!startDate || !endDate) {
-    throw new ApiError(400, "Start date and end date are required!");
-  }
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    throw new ApiError(400, "Invalid date format!");
-  }
-
-  if (start > end) {
-    throw new ApiError(400, "Start date cannot be after end date!");
-  }
-
-  // Validate itinerary
-  if (!itinerary || !Array.isArray(itinerary) || itinerary.length === 0) {
-    throw new ApiError(400, "Itinerary must be a non-empty array!");
-  }
-
-  // Validate planned budget
-  if (
-    plannedBudget === undefined ||
-    plannedBudget === null ||
-    typeof plannedBudget !== "number" ||
-    plannedBudget < 0
-  ) {
-    throw new ApiError(400, "Planned budget must be a non-negative number!");
-  }
-
-  // get the cover Image Path if uploaded
-  let coverImageLocalPath;
-  if (
-    req.files &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
-  ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
-  }
-
-  // upload cover image
-  let coverImage;
-  if (coverImageLocalPath) {
-    coverImage = await uploadOnCloudinary(coverImageLocalPath);
-    if (!coverImage) {
-      throw new ApiError(
-        500,
-        "Cover Image Could not be uploaded !! Try Again.."
-      );
-    }
-  }
 
   // create the entry in database
   const tripPlan = await TripPlan.create({
     tripName,
     tripDesc,
-    notes: notes || "",
-    coverImage: coverImage?.url || "",
     startDate,
     endDate,
-    itinerary: JSON.parse(itinerary),
     tripMembers: [userId],
-    plannedBudget,
     createdBy: userId,
   });
 
@@ -116,7 +43,9 @@ const createTripPlan = asyncHandler(async (req, res) => {
   );
 
   if (tripMembers.length !== 0 && invitations.length !== tripMembers.length) {
-    throw new ApiError(500, "Some invitations could not be sent");
+    res
+      .status(400)
+      .json(new ApiResponse(500, [], "Some invitations could not be sent"));
   }
 
   res
