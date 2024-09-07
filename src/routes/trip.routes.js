@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import {
   addSingleItineraryItem,
@@ -8,6 +7,7 @@ import {
   getInvitedAndAddedMembers,
   getTripById,
   getTripDashboardSummary,
+  getTripExpenseSummaryForDashboard,
   getTripExpenseSummaryForUser,
   getTripSummary,
   inviteUserToTrip,
@@ -25,11 +25,17 @@ tripRouter
 tripRouter
   .route("/:tripId/itineraries")
   .post(verifyJWT, addSingleItineraryItem);
-tripRouter.route("/getTripPlan/:tripId").get(verifyJWT, getTripById);
+tripRouter.route("/:tripId/getTripPlan").get(verifyJWT, getTripById);
 tripRouter.route("/:tripId/getSummary").get(verifyJWT, getTripSummary);
+
+//* Expense Related
 tripRouter
   .route("/getTripExpenseSummaryForUser")
   .get(verifyJWT, getTripExpenseSummaryForUser);
+tripRouter
+  .route("/:tripId/getTripExpenseSummaryForDashboard")
+  .get(verifyJWT, getTripExpenseSummaryForDashboard);
+
 tripRouter.route("/:tripId").patch(verifyJWT, updateTripPlan);
 tripRouter.route("/:tripId").delete(verifyJWT, deleteTrip);
 

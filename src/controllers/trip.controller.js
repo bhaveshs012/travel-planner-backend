@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { TripPlan } from "../models/trip.model.js";
 import { Invitation } from "../models/invitation.model.js";
+import { Expense } from "../models/expense.model.js";
 import mongoose from "mongoose";
 
 const createTripPlan = asyncHandler(async (req, res) => {
@@ -24,31 +25,32 @@ const createTripPlan = asyncHandler(async (req, res) => {
   const createdTripPlan = await TripPlan.findById(tripPlan._id);
 
   if (!createdTripPlan) {
-    throw new ApiError(
-      500,
-      "Something went wrong while creating the Trip Plan !!"
-    );
+    return res
+      .status(400)
+      .json(new ApiResponse(500, [], "Trip Plan Could not be created !!"));
   }
 
   // change the trip members to exclude the creater of the trip :
   // then send invite to others
   const invitations = await Promise.all(
     tripMembers.map(async (invitee) => {
-      return await Invitation.create({
-        tripId: tripPlan._id,
-        inviter: userId,
-        invitee: invitee,
-      });
+      if (invitee !== userId) {
+        return await Invitation.create({
+          tripId: tripPlan._id,
+          inviter: userId,
+          invitee: invitee,
+        });
+      }
     })
   );
 
   if (tripMembers.length !== 0 && invitations.length !== tripMembers.length) {
-    res
+    return res
       .status(400)
       .json(new ApiResponse(500, [], "Some invitations could not be sent"));
   }
 
-  res
+  return res
     .status(201)
     .json(
       new ApiResponse(200, createdTripPlan, "Trip Plan Created Successfully !!")
@@ -107,15 +109,46 @@ const updateTripPlan = asyncHandler(async (req, res) => {
 const getTripById = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
 
-  const tripPlan = await TripPlan.findById(tripId);
+  const tripPlan = await TripPlan.aggregate([
+    {
+      $match: { _id: new mongoose.Types.ObjectId(tripId) },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "tripMembers",
+        foreignField: "_id",
+        as: "tripMembers",
+      },
+    },
+    {
+      $project: {
+        tripName: 1,
+        tripDesc: 1,
+        coverImage: 1,
+        startDate: 1,
+        endDate: 1,
+        notes: 1,
+        itinerary: 1,
+        plannedBudget: 1,
+        tripMembers: {
+          fullName: 1,
+          _id: 1,
+          avatar: 1,
+        },
+      },
+    },
+  ]);
 
-  if (!tripPlan) {
-    throw new ApiError(400, "Trip Plan does not exists !!");
+  if (!tripPlan || tripPlan.length === 0) {
+    throw new ApiError(400, "Trip Plan does not exist !!");
   }
 
   res
     .status(200)
-    .json(new ApiResponse(200, tripPlan, "Trip Plan Fetched Successfully !!"));
+    .json(
+      new ApiResponse(200, tripPlan[0], "Trip Plan Fetched Successfully !!")
+    );
 });
 
 //* Add a single itinerary item to the trip
@@ -917,6 +950,105 @@ const getTripExpenseSummaryForUser = asyncHandler(async (req, res) => {
   }
 });
 
+//* Expense Summary for Dashboard
+const getTripExpenseSummaryForDashboard = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+  try {
+    const tripObjectId = new mongoose.Types.ObjectId(tripId);
+
+    const [totalExpenses, plannedBudget, recentExpenses] = await Promise.all([
+      Expense.aggregate([
+        { $match: { tripId: tripObjectId } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+        { $project: { _id: 0, total: 1 } },
+      ]),
+
+      TripPlan.aggregate([
+        { $match: { _id: tripObjectId } },
+        { $project: { _id: 0, plannedBudget: 1 } },
+      ]),
+
+      Expense.aggregate([
+        { $match: { tripId: tripObjectId } },
+        { $sort: { paymentDate: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: "users",
+            localField: "paidBy",
+            foreignField: "_id",
+            as: "paidByDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$paidByDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "splitBetween",
+            foreignField: "_id",
+            as: "splitBetweenDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$splitBetweenDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $group: {
+            _id: "$_id",
+            category: { $first: "$category" },
+            description: { $first: "$description" },
+            paidTo: { $first: "$paidTo" },
+            amount: { $first: "$amount" },
+            paymentDate: { $first: "$paymentDate" },
+            splitBetween: { $push: "$splitBetweenDetails" },
+            paidBy: { $first: "$paidByDetails" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            category: 1,
+            description: 1,
+            paidTo: 1,
+            amount: 1,
+            paymentDate: 1,
+            splitBetween: {
+              fullName: 1,
+              avatar: 1, // Rename avatar to image
+            },
+            paidBy: {
+              fullName: "$paidBy.fullName",
+              avatar: "$paidBy.avatar", // Rename avatar to image
+            },
+          },
+        },
+      ]),
+    ]);
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          totalExpenses: totalExpenses[0] ? totalExpenses[0].total : 0,
+          plannedBudget: plannedBudget[0] ? plannedBudget[0].plannedBudget : 0,
+          recentExpenses,
+        },
+        "Expense Summary For Dashboard Fetched !!"
+      )
+    );
+  } catch (error) {
+    res.status(500).json(new ApiResponse(500, {}, "Server Error !!"));
+  }
+});
+
 const deleteTrip = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
 
@@ -954,4 +1086,5 @@ export {
   getTripDashboardSummary,
   searchTripMembers,
   getInvitedAndAddedMembers,
+  getTripExpenseSummaryForDashboard,
 };

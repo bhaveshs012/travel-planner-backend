@@ -52,7 +52,7 @@ const tripPlanSchema = new Schema(
       default: 0,
       validate: {
         validator: function (value) {
-          return value > 0;
+          return value >= 0;
         },
         message: "Planned Budget should not be negative",
       },
