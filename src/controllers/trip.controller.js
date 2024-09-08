@@ -664,7 +664,7 @@ const getInvitedAndAddedMembers = asyncHandler(async (req, res) => {
               input: "$tripMembers",
               as: "member",
               in: {
-                _id: "$$member._id",
+                userId: "$$member._id",
                 fullName: "$$member.fullName",
                 avatar: "$$member.avatar",
                 userType: "member",
@@ -676,7 +676,7 @@ const getInvitedAndAddedMembers = asyncHandler(async (req, res) => {
               input: "$invitedMembers",
               as: "invitee",
               in: {
-                _id: "$$invitee._id",
+                userId: "$$invitee._id",
                 fullName: "$$invitee.fullName",
                 avatar: "$$invitee.avatar",
                 userType: "invited",
