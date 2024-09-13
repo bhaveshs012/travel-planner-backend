@@ -2,6 +2,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Booking } from "../models/booking.model.js";
+import { TripPlan } from "../models/trip.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
@@ -49,35 +50,18 @@ const getBookings = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Trip Id cannot be NULL !!");
   }
 
-  const bookings = await Booking.aggregate([
+  const bookings = await TripPlan.aggregate([
     {
       $match: {
-        tripId: new mongoose.Types.ObjectId(tripId),
+        _id: new mongoose.Types.ObjectId(tripId),
       },
     },
     {
       $lookup: {
-        from: "tripplans",
-        localField: "tripId",
-        foreignField: "_id",
-        as: "tripDetails",
-      },
-    },
-    {
-      $unwind: "$tripDetails",
-    },
-    {
-      $group: {
-        _id: "$tripDetails._id",
-        tripName: { $first: "$tripDetails.tripName" },
-        tripDesc: { $first: "$tripDetails.tripDesc" },
-        bookings: {
-          $push: {
-            bookingDetails: "$bookingDetails",
-            bookingType: "$bookingType",
-            bookingReceipt: "$bookingReceipt",
-          },
-        },
+        from: "bookings",
+        localField: "_id",
+        foreignField: "tripId",
+        as: "bookings",
       },
     },
     {
@@ -86,20 +70,25 @@ const getBookings = asyncHandler(async (req, res) => {
         tripId: "$_id",
         tripName: 1,
         tripDesc: 1,
-        bookings: 1,
+        bookings: {
+          $map: {
+            input: "$bookings",
+            as: "booking",
+            in: {
+              bookingDetails: "$$booking.bookingDetails",
+              bookingType: "$$booking.bookingType",
+              bookingReceipt: "$$booking.bookingReceipt",
+            },
+          },
+        },
       },
     },
   ]);
-  if (!bookings) {
-    return res
-      .status(400)
-      .json(new ApiResponse(400, [], "No Bookings Found !!"));
+
+  if (!bookings || bookings.length === 0) {
+    return res.status(200).json(new ApiResponse(200, [], "No Trip Found !!"));
   }
-  if (Array.isArray(bookings) && bookings.length === 0) {
-    return res
-      .status(200)
-      .json(new ApiResponse(200, [], "No Bookings Found !!"));
-  }
+
   return res
     .status(201)
     .json(new ApiResponse(201, bookings[0], "Booking Fetched Successfully"));

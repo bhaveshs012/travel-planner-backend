@@ -7,7 +7,8 @@ import { Expense } from "../models/expense.model.js";
 import mongoose from "mongoose";
 
 const createTripPlan = asyncHandler(async (req, res) => {
-  const { tripName, tripDesc, startDate, endDate, tripMembers } = req.body;
+  const { tripName, tripDesc, startDate, endDate, tripMembers, itinerary } =
+    req.body;
 
   const userId = req.user?._id;
 
@@ -19,6 +20,7 @@ const createTripPlan = asyncHandler(async (req, res) => {
     endDate,
     tripMembers: [userId],
     createdBy: userId,
+    itinerary,
   });
 
   // check is user is created
@@ -59,51 +61,37 @@ const createTripPlan = asyncHandler(async (req, res) => {
 
 const updateTripPlan = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
-  const {
-    tripName,
-    tripDesc,
-    startDate,
-    endDate,
-    itinerary,
-    tripMembers,
-    plannedBudget,
-    notes,
-  } = req.body;
+  const newData = req.body;
 
-  const existingTrip = await TripPlan.findById(tripId);
-  if (!existingTrip) {
-    throw new ApiError(404, "Trip not found !!");
+  try {
+    const trip = await TripPlan.findById(tripId);
+    if (!trip) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, [], "Trip Could Not be Found !!"));
+    }
+
+    Object.keys(newData).forEach((key) => {
+      if (newData[key] !== trip[key]) {
+        if (key === "itinerary") {
+          trip[key] = JSON.parse(newData[key]);
+        } else trip[key] = newData[key]; // Update only changed fields
+      }
+    });
+
+    // Save the updated document
+    await trip.save();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, trip, "Trip Details Updated Successfully !!"));
+  } catch (error) {
+    return res
+      .status(500)
+      .json(
+        new ApiResponse(500, error.message, "Trip Could Not be Updated !!")
+      );
   }
-
-  //* Preserve the createdBy field
-  const { createdBy } = existingTrip;
-
-  const updatedTrip = await TripPlan.findByIdAndUpdate(
-    tripId,
-    {
-      tripName,
-      tripDesc,
-      notes: notes || "",
-      coverImage: coverImage?.url || "",
-      startDate,
-      endDate,
-      itinerary: JSON.parse(itinerary),
-      tripMembers,
-      plannedBudget,
-      createdBy,
-    },
-    { new: true } // Return the updated document
-  );
-
-  if (!updatedTrip) {
-    throw new ApiError(500, "Error updating trip plan");
-  }
-
-  res
-    .status(200)
-    .json(
-      new ApiResponse(200, updatedTrip, "Trip plan updated successfully !!")
-    );
 });
 
 const getTripById = asyncHandler(async (req, res) => {
@@ -965,7 +953,7 @@ const getTripExpenseSummaryForDashboard = asyncHandler(async (req, res) => {
 
       TripPlan.aggregate([
         { $match: { _id: tripObjectId } },
-        { $project: { _id: 0, plannedBudget: 1 } },
+        { $project: { tripId: "$_id", plannedBudget: 1 } },
       ]),
 
       Expense.aggregate([
@@ -1015,6 +1003,7 @@ const getTripExpenseSummaryForDashboard = asyncHandler(async (req, res) => {
         {
           $project: {
             _id: 0,
+            tripId: 1,
             category: 1,
             description: 1,
             paidTo: 1,
@@ -1040,6 +1029,7 @@ const getTripExpenseSummaryForDashboard = asyncHandler(async (req, res) => {
           totalExpenses: totalExpenses[0] ? totalExpenses[0].total : 0,
           plannedBudget: plannedBudget[0] ? plannedBudget[0].plannedBudget : 0,
           recentExpenses,
+          tripId: tripId,
         },
         "Expense Summary For Dashboard Fetched !!"
       )

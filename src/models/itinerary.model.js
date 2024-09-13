@@ -7,7 +7,7 @@ const itinerarySchema = new Schema(
     },
     placeToVisit: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     checklist: {
