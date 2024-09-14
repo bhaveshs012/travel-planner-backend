@@ -9,32 +9,51 @@ const addExpense = asyncHandler(async (req, res) => {
     const { tripId } = req.params;
     const { category, description, paidTo, amount, paymentDate, splitBetween } =
       req.body;
-
     const paidBy = req.user?._id;
 
     // Validations
     if (!paymentDate) {
-      throw new ApiError(400, "Payment Date is required !!");
-    } else if (isNaN(Date.parse(paymentDate))) {
-      res
-        .status(400)
-        .json(new ApiResponse(400, [], "Payment Date is Invalid !!"));
-    } else if (Date.parse(paymentDate) > new Date()) {
-      res
-        .status(400)
-        .json(new ApiResponse(400, [], "Payment Date is Invalid !!"));
+      throw new ApiError(400, "Payment Date is required!");
     }
+
+    const parsedDate = Date.parse(paymentDate);
+    if (isNaN(parsedDate)) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, [], "Payment Date is invalid!"));
+    }
+
+    // Compare date without time
+    const inputDate = new Date(parsedDate);
+    const today = new Date();
+    inputDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    if (inputDate > today) {
+      return res
+        .status(400)
+        .json(
+          new ApiResponse(400, [], "Payment Date cannot be in the future!")
+        );
+    }
+
     if (
       !splitBetween ||
       !Array.isArray(splitBetween) ||
       splitBetween.length === 0
     ) {
-      res
+      return res
         .status(400)
-        .json(new ApiResponse(400, [], "Split Between Zero Members !!"));
+        .json(
+          new ApiResponse(
+            400,
+            [],
+            "You must split the expense between at least one member!"
+          )
+        );
     }
 
-    // Create the document
+    // Create the expense document
     const expense = await Expense.create({
       tripId,
       category: category.toLowerCase(),
@@ -46,29 +65,24 @@ const addExpense = asyncHandler(async (req, res) => {
       splitBetween,
     });
 
-    // check is user is created
-    const createdExpense = await Expense.findById(expense._id);
-
-    if (!createdExpense) {
-      throw new ApiError(
-        500,
-        "Something went wrong while creating the Trip Plan !!"
-      );
+    if (!expense) {
+      throw new ApiError(500, "Failed to create expense!");
     }
 
     return res
       .status(201)
       .json(
         new ApiResponse(
-          200,
-          createdExpense,
-          `Expense Added Successfully to Trip ${tripId} !!`
+          201,
+          expense,
+          `Expense added successfully to trip ${tripId}!`
         )
       );
   } catch (error) {
-    res
+    // Return error with proper status and message
+    return res
       .status(500)
-      .json(new ApiResponse(500, error.message.toString(), "Server Issue !!"));
+      .json(new ApiResponse(500, [], error.message || "Server Issue!"));
   }
 });
 
