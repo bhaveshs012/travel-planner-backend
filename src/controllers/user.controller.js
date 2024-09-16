@@ -1,5 +1,6 @@
 // Imports
 import { ApiResponse } from "../utils/ApiResponse.js";
+import mongoose from "mongoose";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
@@ -289,19 +290,19 @@ const getTripsJoinedByUser = asyncHandler(async (req, res) => {
   }
 });
 
+//* Related to Invitations
 const acceptTripInvitation = asyncHandler(async (req, res) => {
-  const { tripId } = req.params;
+  const { inviteId } = req.params;
   const userId = req.user?.id;
 
   //* Validate the Invitation
-  const invite = await Invitation.findOne({
-    tripId,
-    invitee: userId,
-  });
+  const invite = await Invitation.findById(inviteId);
 
   if (!invite) {
     throw new ApiError(400, "Invitation is not valid !!");
   }
+
+  const tripId = invite.tripId;
 
   //* Update the trip Members in the Trip Document
   const updatedTrip = await TripPlan.findByIdAndUpdate(
@@ -329,6 +330,108 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(200, updatedTrip, "Invitation accepted successfully !!")
     );
+});
+
+const declineTripInvitation = asyncHandler(async (req, res) => {
+  try {
+    const { inviteId } = req.params;
+
+    //* Validate the Invitation
+    const invite = await Invitation.findByIdAndDelete(inviteId);
+
+    if (!invite) {
+      res
+        .status(401)
+        .json(new ApiResponse(401, "", "Invitaion is not Valid !!"));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, invite, "Invitation declined successfully !!")
+      );
+  } catch (error) {
+    res
+      .status(500)
+      .json(
+        new ApiResponse(
+          500,
+          "",
+          "Server Error. Could not decline Invitation !!"
+        )
+      );
+  }
+});
+
+const getAllInvitationsForUser = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+
+  try {
+    const invitations = await Invitation.aggregate([
+      {
+        $match: {
+          invitee: new mongoose.Types.ObjectId(userId),
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "inviter",
+          foreignField: "_id",
+          as: "inviterDetails",
+        },
+      },
+      {
+        $unwind: "$inviterDetails",
+      },
+      {
+        $lookup: {
+          from: "tripplans",
+          localField: "tripId",
+          foreignField: "_id",
+          as: "tripDetails",
+        },
+      },
+      {
+        $unwind: "$tripDetails",
+      },
+      {
+        $project: {
+          inviter: {
+            fullName: "$inviterDetails.fullName",
+            avatar: "$inviterDetails.avatar",
+            username: "$inviterDetails.username",
+          },
+          tripDetails: {
+            tripId: "$tripDetails._id",
+            tripName: "$tripDetails.tripName",
+            tripDesc: "$tripDetails.tripDesc",
+          },
+          invitationId: "$_id",
+        },
+      },
+    ]);
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          invitations,
+          "Invitations for the user Fetched Successfully !!"
+        )
+      );
+  } catch (error) {
+    return res
+      .status(500)
+      .json(
+        new ApiResponse(
+          500,
+          error.message,
+          "Server Error :: Getting all Invitaions For User !!"
+        )
+      );
+  }
 });
 
 //* Search Users Based on Search Parameter
@@ -384,5 +487,7 @@ export {
   getTripsCreatedByUser,
   getTripsJoinedByUser,
   acceptTripInvitation,
+  declineTripInvitation,
+  getAllInvitationsForUser,
   searchUsers,
 };

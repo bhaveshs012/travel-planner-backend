@@ -8,6 +8,8 @@ import {
   getTripsCreatedByUser,
   acceptTripInvitation,
   searchUsers,
+  getAllInvitationsForUser,
+  declineTripInvitation,
 } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -43,6 +45,14 @@ userRouter
   .route("/getTripsCreatedByUser")
   .get(verifyJWT, getTripsCreatedByUser);
 userRouter.route("/getTripsJoinedByUser").get(verifyJWT, getTripsCreatedByUser);
-userRouter.route("/acceptInvite/:tripId").post(verifyJWT, acceptTripInvitation);
+userRouter
+  .route("/:inviteId/acceptInvite")
+  .post(verifyJWT, acceptTripInvitation);
+userRouter
+  .route("/:inviteId/declineInvite")
+  .delete(verifyJWT, declineTripInvitation);
+userRouter
+  .route("/getAllInvitationsForUser")
+  .get(verifyJWT, getAllInvitationsForUser);
 
 export default userRouter;
