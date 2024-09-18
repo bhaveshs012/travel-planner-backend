@@ -14,6 +14,7 @@ import {
   removeTripMember,
   searchTripMembers,
   updateTripPlan,
+  validateTripId,
 } from "../controllers/trip.controller.js";
 
 const tripRouter = Router();
@@ -22,6 +23,7 @@ tripRouter.route("/createTripPlan").post(verifyJWT, createTripPlan);
 tripRouter
   .route("/getTripDashboardSummary")
   .get(verifyJWT, getTripDashboardSummary);
+tripRouter.route("/:tripId/validateTripId").get(verifyJWT, validateTripId);
 tripRouter
   .route("/:tripId/itineraries")
   .post(verifyJWT, addSingleItineraryItem);

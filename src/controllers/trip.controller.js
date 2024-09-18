@@ -612,6 +612,27 @@ const getTripDashboardSummary = asyncHandler(async (req, res) => {
   }
 });
 
+const validateTripId = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+
+  try {
+    // Check if trip exists using the provided tripId
+    const trip = await TripPlan.findById(tripId);
+
+    if (!trip) {
+      return res.status(404).json(new ApiResponse(404, {}, "Trip not found"));
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { tripId: trip._id }, "Trip ID is valid"));
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, error.toString(), "Server error"));
+  }
+});
+
 //* Get Users -> Based on Trips and Invitations
 const getInvitedAndAddedMembers = asyncHandler(async (req, res) => {
   const { tripId } = req.params;
@@ -1072,6 +1093,7 @@ export {
   addSingleItineraryItem,
   updateTripPlan,
   getTripSummary,
+  validateTripId,
   getTripExpenseSummaryForUser,
   getTripDashboardSummary,
   searchTripMembers,
