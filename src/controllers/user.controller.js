@@ -192,8 +192,6 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!isPasswordValid) {
     return res
       .status(400)
-      .cookie("accessToken", accessToken, cookieOptions)
-      .cookie("refreshToken", refreshToken, cookieOptions)
       .json(new ApiResponse(400, "", "Invalid Credentials !!"));
   }
 
