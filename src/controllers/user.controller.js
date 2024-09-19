@@ -3,7 +3,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import mongoose from "mongoose";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { User } from "../models/user.model.js";
 import cookieOptions from "../utils/cookieOptions.js";
 import { TripPlan } from "../models/trip.model.js";
@@ -89,14 +88,14 @@ const registerUser = asyncHandler(async (req, res) => {
   // Getting the data from the frontend
   const { username, fullName, email, password } = req.body;
 
-  // performing the validations
+  // Performing the validations
   if (
     [username, fullName, email, password].some((field) => field.trim() === "")
   ) {
     throw new ApiError(400, "All fields are required !!");
   }
 
-  // check if user exists
+  // Check if the user already exists
   const existingUser = await User.findOne({
     $or: [{ username }, { email }],
   });
@@ -107,32 +106,17 @@ const registerUser = asyncHandler(async (req, res) => {
       .json(new ApiResponse(400, "", "User already exists !!"));
   }
 
-  // check if avatar image is present : multer will give this field
-  const avatarImageLocalPath = req.files?.avatar[0]?.path;
+  // Handle avatar image from multer : Directly we get the file :: no need for localFilePath
+  const avatarFile = req.files?.avatar?.[0];
 
-  // check for cover image : optional haii toh ispe aur checks laga rahe
-  let coverImageLocalPath;
-  if (
-    req.files &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
-  ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
-  }
-
-  // avatar not found: throw error
-  if (!avatarImageLocalPath)
+  if (!avatarFile) {
     return res
       .status(401)
       .json(new ApiResponse(401, "", "Profile Image is Required !!"));
-
-  //upload on cloudinary
-  const avatar = await uploadOnCloudinary(avatarImageLocalPath);
-  let coverImage;
-  if (coverImageLocalPath) {
-    coverImage = await uploadOnCloudinary(coverImageLocalPath);
   }
 
+  //* Directly get the uploaded cloudinary URL
+  const avatar = avatarFile.path;
   if (!avatar) {
     return res
       .status(500)
@@ -145,17 +129,23 @@ const registerUser = asyncHandler(async (req, res) => {
       );
   }
 
-  // create user
+  // Handle cover image if provided
+  let coverImage;
+  if (req.files?.coverImage?.[0]) {
+    coverImage = req.files.coverImage[0].path;
+  }
+
+  // Create the user
   const user = await User.create({
     fullName,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
+    avatar,
+    coverImage, // Optional field
     email,
     password,
     username: username.toLowerCase(),
   });
 
-  // check is user is created
+  // Retrieve the created user (excluding sensitive fields)
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
@@ -166,15 +156,16 @@ const registerUser = asyncHandler(async (req, res) => {
       .json(new ApiResponse(500, "", "User could not be registered !!"));
   }
 
-  return res
-    .status(201)
-    .json(
-      new ApiResponse(
-        201,
-        { user: createdUser },
-        "User registered Successfully"
-      )
-    );
+  // Respond with the newly created user
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      {
+        user: createdUser,
+      },
+      "User registered successfully"
+    )
+  );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -201,6 +192,8 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!isPasswordValid) {
     return res
       .status(400)
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, cookieOptions)
       .json(new ApiResponse(400, "", "Invalid Credentials !!"));
   }
 
@@ -325,7 +318,7 @@ const acceptTripInvitation = asyncHandler(async (req, res) => {
     invitee: userId,
   });
 
-  res
+  return res
     .status(200)
     .json(
       new ApiResponse(200, updatedTrip, "Invitation accepted successfully !!")
@@ -437,6 +430,7 @@ const getAllInvitationsForUser = asyncHandler(async (req, res) => {
 //* Search Users Based on Search Parameter
 const searchUsers = asyncHandler(async (req, res) => {
   const { searchParameter } = req.query;
+  const userId = req.user?._id;
 
   try {
     const filteredMembers = await User.aggregate([
@@ -468,7 +462,11 @@ const searchUsers = asyncHandler(async (req, res) => {
     return res
       .status(200)
       .json(
-        new ApiResponse(200, filteredMembers, "Users Filtered successfully !!")
+        new ApiResponse(
+          200,
+          { filteredMembers, currentUserId: userId },
+          "Users Filtered successfully !!"
+        )
       );
   } catch (error) {
     return res

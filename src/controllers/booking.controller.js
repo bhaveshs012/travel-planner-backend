@@ -3,44 +3,47 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Booking } from "../models/booking.model.js";
 import { TripPlan } from "../models/trip.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
 const addBooking = asyncHandler(async (req, res) => {
-  const { tripId, bookingType, bookingDetails } = req.body;
+  try {
+    const { tripId, bookingType, bookingDetails } = req.body;
 
-  // Getting the Booking Receipt through Multer
-  const bookingReceiptLocalPath = req.files?.bookingReceipt[0]?.path;
+    // Check for file uploads
+    const bookingReceipt = req.files?.bookingReceipt?.[0]; // Multer Added !!
 
-  if (!bookingReceiptLocalPath) {
-    throw new ApiError(400, "Booking Receipt is Required !!");
+    if (!bookingReceipt) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, {}, "Booking Receipt is Required !!"));
+    }
+
+    // Create a booking entry
+    const booking = await Booking.create({
+      tripId,
+      bookingType,
+      bookingReceipt: bookingReceipt.path, // Directly get the Cloudinary URL
+      bookingDetails: JSON.parse(bookingDetails),
+    });
+
+    // Verify creation
+    const createdBooking = await Booking.findById(booking._id);
+
+    if (!createdBooking) {
+      return res
+        .status(500)
+        .json(new ApiResponse(500, {}, "Booking Could Not be Created !!"));
+    }
+
+    // Respond with the created booking
+    return res
+      .status(201)
+      .json(new ApiResponse(201, createdBooking, "Booking Saved Successfully"));
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, {}, "Booking Could Not be Created !!"));
   }
-
-  // Upload to Cloudinary
-  const bookingReceipt = await uploadOnCloudinary(bookingReceiptLocalPath);
-
-  if (!bookingReceipt) {
-    throw new ApiError(500, "Receipt Could not be Uploaded !!");
-  }
-
-  const booking = await Booking.create({
-    tripId,
-    bookingType,
-    bookingReceipt: bookingReceipt.url,
-    bookingDetails: JSON.parse(bookingDetails),
-  });
-
-  const createdBooking = await Booking.findById(booking._id);
-
-  if (!createdBooking) {
-    throw new ApiError(
-      500,
-      "Something went wrong while adding the Booking Details"
-    );
-  }
-  return res
-    .status(201)
-    .json(new ApiResponse(201, createdBooking, "Booking Saved Successfully"));
 });
 
 const getBookings = asyncHandler(async (req, res) => {
