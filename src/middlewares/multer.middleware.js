@@ -15,7 +15,7 @@ const storage = new CloudinaryStorage({
   params: {
     folder: "uploads", // Optional folder to store files in Cloudinary
     allowed_formats: ["jpg", "png", "pdf"], // Restrict file formats
-    
+
     public_id: (req, file) => `${Date.now()}_${file.originalname}`, // Use original file name as public_id
   },
 });

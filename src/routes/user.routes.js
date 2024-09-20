@@ -10,6 +10,7 @@ import {
   searchUsers,
   getAllInvitationsForUser,
   declineTripInvitation,
+  updateProfile,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -31,11 +32,19 @@ userRouter.route("/register").post(
   registerUser
 );
 userRouter.route("/login").post(loginUser);
-
-//* Secured Routes
 userRouter.route("/logout").post(verifyJWT, logoutUser);
 userRouter.route("/refresh-token").post(refreshAccessToken);
 userRouter.route("/current-user").get(verifyJWT, getCurrentUser);
+userRouter.route("/updateProfile").patch(
+  verifyJWT,
+  upload.fields([
+    {
+      name: "avatar",
+      maxCount: 1, // no. of files
+    },
+  ]),
+  updateProfile
+);
 
 //* Search All Users
 userRouter.route("/searchUsers").get(verifyJWT, searchUsers);

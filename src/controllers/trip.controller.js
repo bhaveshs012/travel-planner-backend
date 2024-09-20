@@ -943,7 +943,9 @@ const getTripExpenseSummaryForUser = asyncHandler(async (req, res) => {
     if (summary.length === 0) {
       return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Trip Details could not be found !!"));
+        .json(
+          new ApiResponse(200, summary, "Trip Details could not be found !!")
+        );
     }
     return res.status(200).json(
       new ApiResponse(

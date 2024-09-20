@@ -8,6 +8,7 @@ import cookieOptions from "../utils/cookieOptions.js";
 import { TripPlan } from "../models/trip.model.js";
 import { Invitation } from "../models/invitation.model.js";
 import jwt from "jsonwebtoken";
+import { v2 as cloudinary } from "cloudinary";
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
@@ -254,6 +255,51 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   );
 });
 
+const updateProfile = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  const { fullName, email, username, prevImageUrl } = req.body;
+  const avatar = req.files?.avatar?.[0]; // Multer Added !!
+
+  // Find the user by ID
+  const user = await User.findById(userId);
+
+  if (!user) {
+    res.status(404);
+    throw new ApiError("User not found");
+  }
+
+  //* Remove the previous avatar image if present
+  if (user.avatar && prevImageUrl) {
+    const publicId = user.avatar.split("/").pop().split(".")[0]; // Extract public ID from the URL
+    await cloudinary.uploader.destroy(publicId); // Remove the old image from Cloudinary
+  }
+
+  // Update only the provided fields
+  if (fullName) user.fullName = fullName;
+  if (email) user.email = email;
+  if (username) user.username = username;
+  if (avatar) {
+    user.avatar = avatar.path;
+  }
+
+  // Save updated user profile
+  const updatedUser = await user.save();
+
+  // Respond with updated user info (excluding sensitive fields)
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        _id: updatedUser._id,
+        fullName: updatedUser.fullName,
+        email: updatedUser.email,
+        username: updatedUser.username,
+      },
+      "User updated Successfully !!"
+    )
+  );
+});
+
 //* Related to Trip Plans
 const getTripsCreatedByUser = asyncHandler(async (req, res) => {
   // already passed through middleware
@@ -482,6 +528,7 @@ export {
   generateAccessAndRefreshTokens,
   refreshAccessToken,
   getCurrentUser,
+  updateProfile,
   getTripsCreatedByUser,
   getTripsJoinedByUser,
   acceptTripInvitation,
