@@ -71,15 +71,41 @@ const updateTripPlan = asyncHandler(async (req, res) => {
         .json(new ApiResponse(400, [], "Trip Could Not be Found !!"));
     }
 
+    // Update all fields except tripMembers
     Object.keys(newData).forEach((key) => {
-      if (newData[key] !== trip[key]) {
+      if (key !== "tripMembers" && newData[key] !== trip[key]) {
         if (key === "itinerary") {
           trip[key] = JSON.parse(newData[key]);
-        } else trip[key] = newData[key]; // Update only changed fields
+        } else {
+          trip[key] = newData[key]; // Update only changed fields
+        }
       }
     });
 
-    // Save the updated document
+    const tripMembersIds = newData.tripMembers;
+
+    // Send invitations for new trip members who are not already invited
+    const invitations = await Promise.all(
+      tripMembersIds.map(async (invitee) => {
+        const existingInvitation = await Invitation.findOne({
+          tripId: trip._id,
+          invitee: invitee,
+        });
+
+        // Check if they are not already invited and not already a trip member
+        if (!existingInvitation && !trip.tripMembers.includes(invitee)) {
+          return await Invitation.create({
+            tripId: trip._id,
+            inviter: req.user._id, // Assuming the current user is making the update
+            invitee: invitee,
+          });
+        }
+      })
+    );
+
+    // Don't directly update tripMembers; it will be updated only with confirmed members
+
+    // Save the updated trip without affecting tripMembers directly
     await trip.save();
 
     return res
