@@ -94,11 +94,13 @@ const updateTripPlan = asyncHandler(async (req, res) => {
 
         // Check if they are not already invited and not already a trip member
         if (!existingInvitation && !trip.tripMembers.includes(invitee)) {
-          return await Invitation.create({
-            tripId: trip._id,
-            inviter: req.user._id, // Assuming the current user is making the update
-            invitee: invitee,
-          });
+          if (invitee) {
+            return await Invitation.create({
+              tripId: trip._id,
+              inviter: req.user._id, // Assuming the current user is making the update
+              invitee: invitee,
+            });
+          }
         }
       })
     );
@@ -136,6 +138,50 @@ const getTripById = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "invitations",
+        localField: "_id",
+        foreignField: "tripId",
+        as: "invitedUsers",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "invitedUsers.invitee",
+        foreignField: "_id",
+        as: "invitedMembers",
+      },
+    },
+    {
+      $addFields: {
+        tripMembers: {
+          $map: {
+            input: "$tripMembers",
+            as: "member",
+            in: {
+              userId: "$$member._id",
+              fullName: "$$member.fullName",
+              avatar: "$$member.avatar",
+              userType: "member",
+            },
+          },
+        },
+        invitedMembers: {
+          $map: {
+            input: "$invitedMembers",
+            as: "invitee",
+            in: {
+              userId: "$$invitee._id",
+              fullName: "$$invitee.fullName",
+              avatar: "$$invitee.avatar",
+              userType: "invited",
+            },
+          },
+        },
+      },
+    },
+    {
       $project: {
         tripName: 1,
         tripDesc: 1,
@@ -146,9 +192,7 @@ const getTripById = asyncHandler(async (req, res) => {
         itinerary: 1,
         plannedBudget: 1,
         tripMembers: {
-          fullName: 1,
-          _id: 1,
-          avatar: 1,
+          $concatArrays: ["$tripMembers", "$invitedMembers"], // Merge members and invited users
         },
       },
     },
