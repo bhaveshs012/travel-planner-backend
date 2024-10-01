@@ -13,7 +13,10 @@ import {
   updateProfile,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { upload } from "../middlewares/multer.middleware.js";
+import {
+  upload,
+  multerErrorHandler,
+} from "../middlewares/multer.middleware.js";
 
 const userRouter = Router();
 
@@ -29,6 +32,7 @@ userRouter.route("/register").post(
       maxCount: 1,
     },
   ]),
+  multerErrorHandler,
   registerUser
 );
 userRouter.route("/login").post(loginUser);
